@@ -1,6 +1,7 @@
 import os
 import matplotlib.pyplot as plt
 import argparse
+from yacs.config import CfgNode
 import scipy.io as scio
 import numpy as np
 import torch
@@ -89,19 +90,33 @@ def main():
 
     print("Dataloading is over.")
 
-    model = get_model(args).Model(space_dim=2,
-                                  n_layers=args.n_layers,
-                                  n_hidden=args.n_hidden,
-                                  dropout=args.dropout,
-                                  n_head=args.n_heads,
-                                  Time_Input=False,
-                                  mlp_ratio=args.mlp_ratio,
-                                  fun_dim=T_in,
-                                  out_dim=1,
-                                  slice_num=args.slice_num,
-                                  ref=args.ref,
-                                  unified_pos=args.unified_pos,
-                                  H=h, W=h).cuda()
+    if args.model == "DMamba":
+        config = CfgNode({
+            'input_size': (T_in, h, h),
+            'patch_size': (T_in, 4, 4),
+            'stride': (T_in, 4, 4),
+            'channels': 1,
+            'dim': 32,
+            'mlp_ratio': 4,
+            'depth': 3,
+            'dropout': 0.0,
+            'dropout_embed': 0.0,
+        })
+        model = get_model(args).Model(config).cuda()
+    else:
+        model = get_model(args).Model(space_dim=2,
+                                      n_layers=args.n_layers,
+                                      n_hidden=args.n_hidden,
+                                      dropout=args.dropout,
+                                      n_head=args.n_heads,
+                                      Time_Input=False,
+                                      mlp_ratio=args.mlp_ratio,
+                                      fun_dim=T_in,
+                                      out_dim=1,
+                                      slice_num=args.slice_num,
+                                      ref=args.ref,
+                                      unified_pos=args.unified_pos,
+                                      H=h, W=h).cuda()
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
@@ -184,6 +199,7 @@ def main():
                 for t in range(0, T, step):
                     y = yy[..., t:t + step]
                     im = model(x, fx=fx)  # B , 4096 , 1
+                    print(im.shape, y.shape)
                     loss += myloss(im.reshape(bsz, -1), y.reshape(bsz, -1))
                     if t == 0:
                         pred = im
